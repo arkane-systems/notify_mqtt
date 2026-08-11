@@ -1,5 +1,5 @@
 {
-  "name": "MQTT Notification Service",
+  "name": "Notify MQTT",
   "render_readme": true,
   "homeassistant": "2023.4.0"
 }
