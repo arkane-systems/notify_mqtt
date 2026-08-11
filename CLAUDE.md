@@ -83,6 +83,13 @@ configuration.yaml: notify: platform: notify_mqtt
 | `custom_components/notify_mqtt/services.yaml` | Defines the `notify_mqtt.publish` custom service schema (must stay in sync with `SERVICE_PUBLISH_SCHEMA` in `__init__.py`) |
 | `custom_components/notify_mqtt/strings.json` | Config/options flow UI strings — source of truth |
 | `custom_components/notify_mqtt/translations/en.json` | English translations — must mirror `strings.json` |
+| `custom_components/notify_mqtt/brand/` | Bundled brand images (icon/logo, light and dark variants) — see Brand assets below |
+
+## Brand assets
+
+Icon/logo images live in `custom_components/notify_mqtt/brand/` and are picked up automatically by Home Assistant 2026.3+ with no manifest changes — this project always uses this self-hosted approach rather than submitting to the `home-assistant/brands` repository. On older HA versions the folder is simply ignored (no local icon shown), so it doesn't affect the minimum supported version in `hacs.json`.
+
+Files: `icon.png`/`icon@2x.png` (256/512, square 1:1), `logo.png`/`logo@2x.png` (landscape, longest side ≤256/512), and `dark_icon*`/`dark_logo*` counterparts shown in the frontend's dark theme. The source artwork's outline color is a dark navy that has poor contrast on dark backgrounds, so the `dark_*` variants recolor that outline to white while leaving the cyan accent color unchanged (it already reads fine on dark).
 
 ## JSON payload format
 
