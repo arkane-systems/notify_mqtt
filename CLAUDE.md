@@ -1,0 +1,108 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project overview
+
+`notify_mqtt` is a Home Assistant custom component (distributed via HACS) that bridges HA's notification system to MQTT. When a notification is sent, it serializes the payload to JSON and publishes it to a configured MQTT topic, for consumption by Node-RED or any other MQTT-aware system. Minimum supported Home Assistant version: 2023.4.0 (see `hacs.json`).
+
+There is no build system or linter configured in this repo. CI runs two GitHub Actions on every push/PR: `hassfest` (`.github/workflows/hassfest.yml`), which validates the integration's manifest/structure against Home Assistant's core requirements, and `test` (`.github/workflows/test.yml`), which runs the pytest suite.
+
+## Testing
+
+Tests use [`pytest-homeassistant-custom-component`](https://pypi.org/project/pytest-homeassistant-custom-component/), which provides a real (in-memory) `hass` fixture and HA test helpers without needing a full Home Assistant core checkout. Set up and run:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements_test.txt
+pytest tests/                      # full suite
+pytest tests/test_config_flow.py   # single file
+pytest tests/test_init.py::test_service_registered_on_first_setup  # single test
+```
+
+`requirements_test.txt` pins `pytest-homeassistant-custom-component`, which in turn pins a compatible `homeassistant` core version — bump it deliberately, not incidentally, since it determines which HA APIs the tests exercise. `pytest.ini` sets `asyncio_mode = auto` (required for the `async def test_...` tests here).
+
+**Custom component discovery gotcha:** `pytest-homeassistant-custom-component` ships its own `custom_components` package (with an `__init__.py`) inside its installed `testing_config` dir. Because Python's import system resolves a *regular* package (one with `__init__.py`) before merging any namespace packages, a bare `hass.config_entries.async_setup(...)` in a test would silently fail to find `notify_mqtt` unless something extends `custom_components.__path__` to include this repo's `custom_components/` dir. `tests/conftest.py` does this once at collection time, and also wires up the `enable_custom_integrations` fixture as `autouse` so every test can load the integration without asking for it explicitly. If integration discovery starts failing in a new HA version, this is the first place to check — the `_get_custom_components()` implementation in `homeassistant/loader.py` is the reference for how it actually resolves integrations.
+
+## Architecture
+
+Two parallel setup paths coexist in the same codebase — always consider both when changing shared code:
+
+```
+── UI / Config Flow path ──────────────────────────────────────────────
+ConfigFlow (config_flow.py)
+    → stores topic in ConfigEntry
+    → async_setup_entry (__init__.py)
+        → forwards to notify platform → MqttNotifyEntity (notify.py)
+            → notify.send_message  (message + title only)
+        → registers notify_mqtt.publish service (__init__.py)
+            → _build_payload(message, title, data) → mqtt.async_publish
+
+── YAML / Legacy path ─────────────────────────────────────────────────
+configuration.yaml: notify: platform: notify_mqtt
+    → get_service (notify.py)
+        → MqttNotificationService (notify.py)
+            → notify.NAME  (message + title + target + data dict)
+                → _build_payload → mqtt.async_publish
+```
+
+`_build_payload()` in `notify.py` is the single shared JSON-serialization helper used by both paths — keep it that way rather than duplicating serialization logic.
+
+### Config-entry path (new)
+- `MqttNotifyEntity` inherits from `NotifyEntity`; implements `async_send_message(message, title=None)`.
+- `_attr_supported_features = NotifyEntityFeature.TITLE` signals title support to HA.
+- The entity instance is stored in `hass.data[DOMAIN]` keyed by `entry.entry_id` so the custom service handler in `__init__.py` can retrieve it by `entity_id`.
+- MQTT is published via `await mqtt.async_publish(hass, topic, payload)`.
+- Only supports `message`/`title` through the standard `notify.send_message` service. Arbitrary extra data requires the `notify_mqtt.publish` custom service, since HA's standard notify service doesn't expose a `data` dict to entity-based notifiers.
+
+### YAML-legacy path (kept for backward compatibility)
+- `MqttNotificationService` inherits from `BaseNotificationService`; implements `async_send_message(message, **kwargs)`.
+- `PLATFORM_SCHEMA` extends HA's base with `vol.Required(CONF_TOPIC): valid_publish_topic`.
+- `get_service(hass, config, discovery_info=None)` is the factory HA calls.
+- Supports the full payload: `message`, `title`, `target`, and an arbitrary `data` dict (merged top-level into the JSON payload) — this is legacy behavior kept for compatibility and must not change.
+
+### Custom service + multi-entry
+- `notify_mqtt.publish` is registered on the **first** `async_setup_entry` call and removed only when the **last** entry is unloaded (i.e. `hass.data[DOMAIN]` becomes empty).
+- All active entities are stored in `hass.data[DOMAIN]` keyed by `entry.entry_id`; the service handler resolves the target by matching `entity.entity_id` across all entries. This is what lets multiple topics (multiple config entries) share one service registration.
+
+### Config flow
+- `unique_id` = the MQTT topic string, which prevents duplicate entries for the same topic.
+- Error key `"invalid_topic"` maps to the string in `strings.json`.
+- `NotifyMqttOptionsFlow` handles editing an existing entry (topic + name); registered via `async_get_options_flow`. On save it checks for duplicate topics across *other* entries, then calls `async_update_entry(unique_id=...)` if the topic changed, then triggers `_async_options_updated` → `async_reload` so the entity immediately reflects new values.
+- The entity reads effective config as `{**entry.data, **entry.options}` so options always override the original entry data.
+
+## Key files
+
+| File | Purpose |
+|---|---|
+| `custom_components/notify_mqtt/notify.py` | Both platforms: `MqttNotifyEntity` (config entry), `MqttNotificationService` (YAML legacy), `_build_payload` helper |
+| `custom_components/notify_mqtt/__init__.py` | `async_setup_entry` / `async_unload_entry`; registers `notify_mqtt.publish` custom service |
+| `custom_components/notify_mqtt/config_flow.py` | Config + options flow: prompts for MQTT topic/name, validates with `valid_publish_topic`, dedupes by topic |
+| `custom_components/notify_mqtt/const.py` | `DOMAIN`, `CONF_TOPIC`, `CONF_NAME` constants |
+| `custom_components/notify_mqtt/manifest.json` | Integration metadata: `config_flow: true`, `iot_class: local_push`, `integration_type: service` |
+| `custom_components/notify_mqtt/services.yaml` | Defines the `notify_mqtt.publish` custom service schema (must stay in sync with `SERVICE_PUBLISH_SCHEMA` in `__init__.py`) |
+| `custom_components/notify_mqtt/strings.json` | Config/options flow UI strings — source of truth |
+| `custom_components/notify_mqtt/translations/en.json` | English translations — must mirror `strings.json` |
+| `custom_components/notify_mqtt/brand/` | Bundled brand images (icon/logo, light and dark variants) — see Brand assets below |
+
+## Brand assets
+
+Icon/logo images live in `custom_components/notify_mqtt/brand/` and are picked up automatically by Home Assistant 2026.3+ with no manifest changes — this project always uses this self-hosted approach rather than submitting to the `home-assistant/brands` repository. On older HA versions the folder is simply ignored (no local icon shown), so it doesn't affect the minimum supported version in `hacs.json`.
+
+Files: `icon.png`/`icon@2x.png` (256/512, square 1:1), `logo.png`/`logo@2x.png` (landscape, longest side ≤256/512), and `dark_icon*`/`dark_logo*` counterparts shown in the frontend's dark theme. The source artwork's outline color is a dark navy that has poor contrast on dark backgrounds, so the `dark_*` variants recolor that outline to white while leaving the cyan accent color unchanged (it already reads fine on dark).
+
+## JSON payload format
+
+Both paths produce the same shape:
+```json
+{
+  "message": "...",
+  "title": "...",        // if provided
+  "target": "...",       // YAML path only
+  "key": "value"         // data dict keys, merged top-level (either path)
+}
+```
+
+## Things to keep in sync when changing config flow strings or schema
+
+`strings.json` and `translations/en.json` must be kept in sync manually — HA has no build step that generates one from the other in this repo. Likewise, `services.yaml`'s `publish` field definitions must match `SERVICE_PUBLISH_SCHEMA` in `__init__.py`.

@@ -1,12 +1,13 @@
 {
   "domain": "notify_mqtt",
   "name": "Notify MQTT",
-  "codeowners": ["@cerebrate"],
+  "codeowners": ["@arkane-systems"],
   "config_flow": true,
   "dependencies": ["mqtt"],
-  "documentation": "https://github.com/cerebrate/notify_mqtt",
+  "documentation": "https://github.com/arkane-systems/notify_mqtt",
   "integration_type": "service",
   "iot_class": "local_push",
+  "issue_tracker": "https://github.com/arkane-systems/notify_mqtt/issues",
   "requirements": [],
-  "version": "1.0.0"
+  "version": "1.1.0"
 }

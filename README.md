@@ -1,4 +1,4 @@
-# MQTT notification service for Home Assistant.
+# ![icon](assets/notify_mqtt-32px.png) MQTT notification service for Home Assistant.
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://github.com/custom-components/hacs)
 
