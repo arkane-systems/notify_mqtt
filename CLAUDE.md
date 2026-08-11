@@ -6,7 +6,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `notify_mqtt` is a Home Assistant custom component (distributed via HACS) that bridges HA's notification system to MQTT. When a notification is sent, it serializes the payload to JSON and publishes it to a configured MQTT topic, for consumption by Node-RED or any other MQTT-aware system. Minimum supported Home Assistant version: 2023.4.0 (see `hacs.json`).
 
-There is no build system, test suite, or linter configured in this repo. The only CI is the `hassfest` GitHub Action (`.github/workflows/hassfest.yml`), which validates the integration's manifest/structure against Home Assistant's core requirements on every push/PR. There is no local equivalent command to run — validation happens in CI.
+There is no build system or linter configured in this repo. CI runs two GitHub Actions on every push/PR: `hassfest` (`.github/workflows/hassfest.yml`), which validates the integration's manifest/structure against Home Assistant's core requirements, and `test` (`.github/workflows/test.yml`), which runs the pytest suite.
+
+## Testing
+
+Tests use [`pytest-homeassistant-custom-component`](https://pypi.org/project/pytest-homeassistant-custom-component/), which provides a real (in-memory) `hass` fixture and HA test helpers without needing a full Home Assistant core checkout. Set up and run:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements_test.txt
+pytest tests/                      # full suite
+pytest tests/test_config_flow.py   # single file
+pytest tests/test_init.py::test_service_registered_on_first_setup  # single test
+```
+
+`requirements_test.txt` pins `pytest-homeassistant-custom-component`, which in turn pins a compatible `homeassistant` core version — bump it deliberately, not incidentally, since it determines which HA APIs the tests exercise. `pytest.ini` sets `asyncio_mode = auto` (required for the `async def test_...` tests here).
+
+**Custom component discovery gotcha:** `pytest-homeassistant-custom-component` ships its own `custom_components` package (with an `__init__.py`) inside its installed `testing_config` dir. Because Python's import system resolves a *regular* package (one with `__init__.py`) before merging any namespace packages, a bare `hass.config_entries.async_setup(...)` in a test would silently fail to find `notify_mqtt` unless something extends `custom_components.__path__` to include this repo's `custom_components/` dir. `tests/conftest.py` does this once at collection time, and also wires up the `enable_custom_integrations` fixture as `autouse` so every test can load the integration without asking for it explicitly. If integration discovery starts failing in a new HA version, this is the first place to check — the `_get_custom_components()` implementation in `homeassistant/loader.py` is the reference for how it actually resolves integrations.
 
 ## Architecture
 
