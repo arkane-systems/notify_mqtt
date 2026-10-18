@@ -1,6 +1,6 @@
 # ![icon](assets/notify_mqtt-32px.png) MQTT notification service for Home Assistant.
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://github.com/custom-components/hacs)
+[![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/default)
 
 The `notify_mqtt` integration publishes Home Assistant notifications to an MQTT topic as a JSON payload. It is primarily intended for use with [Node-RED](https://nodered.org/) or any other MQTT-aware system that consumes notification events.
 
@@ -8,7 +8,10 @@ The `notify_mqtt` integration publishes Home Assistant notifications to an MQTT 
 
 ## Installation
 
-Install via [HACS](https://hacs.xyz/) as a custom repository, or copy the `custom_components/notify_mqtt` directory into your Home Assistant `custom_components` folder.
+1. In Home Assistant, go to **HACS → Integrations**, search for **Notify MQTT**, and click **Download**.
+2. Restart Home Assistant.
+
+Alternatively, copy the `custom_components/notify_mqtt` directory into your Home Assistant `custom_components` folder manually.
 
 ---
 
