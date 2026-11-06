@@ -1,6 +1,7 @@
 {
   "domain": "notify_mqtt",
   "name": "Notify MQTT",
+  "categories": ["messaging_notifications"],
   "codeowners": ["@arkane-systems"],
   "config_flow": true,
   "dependencies": ["mqtt"],
@@ -9,5 +10,5 @@
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/arkane-systems/notify_mqtt/issues",
   "requirements": [],
-  "version": "1.1.0"
+  "version": "1.1.1"
 }
