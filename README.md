@@ -8,7 +8,14 @@ The `notify_mqtt` integration publishes Home Assistant notifications to an MQTT 
 
 ## Installation
 
-1. In Home Assistant, go to **HACS → Integrations**, search for **Notify MQTT**, and click **Download**.
+### Marketplace or HACS
+
+Notify MQTT is in the HACS default catalog. From Home Assistant 2026.11, HACS is
+built into Home Assistant as the **Marketplace** (Settings → Marketplace); on
+earlier versions, install it through HACS.
+
+1. Open **Settings → Marketplace** (2026.11 or later) or **HACS → Integrations**
+   (earlier versions), search for **Notify MQTT**, and click **Download**.
 2. Restart Home Assistant.
 
 Alternatively, copy the `custom_components/notify_mqtt` directory into your Home Assistant `custom_components` folder manually.
